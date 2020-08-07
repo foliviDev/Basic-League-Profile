@@ -1,17 +1,37 @@
-import requests
+import requests, json, itertools
+from getpass import getpass
 
-# dev API key
-api_temp = 'ENTER YOUR API KEY HERE OR IT WONT WORK'
+def getDDragonData():
 
-def requestBySummName(region, summoner_name):
+    # Extracting champion data from ddragon file and making the dict more accessible
+    with open('Resources/champion.json', 'r') as ddragon_data:
 
-    summoner_data = requests.get(f'https://{region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summoner_name}?api_key={api_temp}')
+        ddragon_champs_raw = json.load(ddragon_data)
+        ddragon_champs = ddragon_champs_raw['data']
+    
+    champ_keys = {}
+
+    # Making a dict with all the champions and their key id
+    for champ, data in ddragon_champs.items():
+
+        champ_keys.update({champ: data['key']})
+
+    # Check if the dict is filling correctly, displays 5 entries
+    # print(f'\nSome champions and keys: {str(dict(itertools.islice(champ_keys.items(), 50)))}')
+
+    return champ_keys
+
+
+
+def requestBySummName(api_key, region, summoner_name):
+
+    summoner_data = requests.get(f'https://{region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summoner_name}?api_key={api_key}')
 
     return summoner_data.json()
 
-def requestByID(region, summoner_id):
+def requestByID(api_key, region, summoner_id):
 
-    summoner_ranked = requests.get(f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={api_temp}')
+    summoner_ranked = requests.get(f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={api_key}')
 
     return summoner_ranked.json()
 
@@ -54,9 +74,9 @@ def summonerProfile(summoner_name, summoner_data_json, summoner_ranked_json):
 
     return summoner_profile
 
-def requestInGame(summoner_name, region, summoner_id):
+def requestInGame(api_key, summoner_name, region, summoner_id):
 
-    ingame_info = requests.get(f'https://{region}.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/{summoner_id}?api_key={api_temp}')
+    ingame_info = requests.get(f'https://{region}.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/{summoner_id}?api_key={api_key}')
 
     if ingame_info.status_code == 404:
 
@@ -72,21 +92,46 @@ def requestInGame(summoner_name, region, summoner_id):
 
 def inGameProfile(summoner_name, ingame_info):
 
-    # Finding game length and champion played
-    min, sec = divmod(ingame_info["gameLength"], 60)
-    champion_played = "fiora" # CHANGE THIS TO READ THE CHAMPION PLAYED
+    # Finding game length (in seconds), adding 3 minutes to get realtime
+    min, sec = divmod(ingame_info["gameLength"] + 180, 60)
 
-    # Creating a dictionary with it
-    champion_time = {"min": min, "sec": sec,"champion": champion_played}
+    # Finding the id of the champion played
+    for player in ingame_info["participants"]:
 
-    return champion_time 
+        if player["summonerName"] == summoner_name:
+
+            champion_played_id = player["championId"]
+
+    # Checking if we got an id
+    # print(f'The champ id is: {champion_played_id}')
+
+    # Creating a dictionary with gametime and champion name
+    championId_and_time = {"min": min, "sec": sec, "championId": champion_played_id}
+
+    return championId_and_time 
+
+def championIdToName(champ_keys, championId):
+
+    for champ_name, champ_id in champ_keys.items():
+
+        if str(championId) == champ_id:
+
+            return champ_name
+    
+    return f"ERROR: THE CHAMPION KEY ID ({championId}) IS NOT ON THE DATABASE"
 
 def main():
 
     print(f'\nBASIC LEAGUE PROFILE (GitHub: folivDev)\n')
 
+    # Getting the API key
+    api_key = str(getpass('\nInsert your API key: '))
+    
+    # Calls the function that gets all the champion data for the current patch in the file
+    champ_keys = getDDragonData()
+
     # Input region and summoner name
-    region = str(input(f"Enter the region you're interested in (NA = na1, EUW = euw1): "))
+    region = str(input(f"\nEnter the region you're interested in (NA = na1, EUW = euw1): "))
     
     if region != 'na1' and region != 'euw1':
 
@@ -108,13 +153,13 @@ def main():
             print(f'\nUNKNOWN ERROR. QUITTING...\n')
             raise SystemExit
     
-    summoner_name = str(input(f'\nNow please enter your summoner name: '))
+    summoner_name = str(input(f'\nNow enter your summoner name: '))
 
     # Calling function to get level and id
-    summoner_data_json = requestBySummName(region, summoner_name)
+    summoner_data_json = requestBySummName(api_key, region, summoner_name)
 
     # Calling function to get ranked data
-    summoner_ranked_json = requestByID(region, summoner_id = summoner_data_json["id"])
+    summoner_ranked_json = requestByID(api_key, region, summoner_id = summoner_data_json["id"]) 
 
     # Calling function to get the summoner profile
     summoner_profile = summonerProfile(summoner_name, summoner_data_json, summoner_ranked_json)
@@ -133,15 +178,17 @@ def main():
     )
 
     # Calling function to get in-game information
-    ingame_info = requestInGame(summoner_name, region, summoner_id = summoner_data_json["id"])
+    ingame_info = requestInGame(api_key, summoner_name, region, summoner_id = summoner_data_json["id"])
 
     # Calling function to process in-game information
-    champion_time = inGameProfile(summoner_name, ingame_info)
+    championId_and_time = inGameProfile(summoner_name, ingame_info)
+
+    champion_name = championIdToName(champ_keys, championId_and_time["championId"])
 
     # Printing the in-game data
     print(
         f'''
-        CURRENTLY: IN GAME ({champion_time.get("min")}:{champion_time.get("sec")}) AS {champion_time.get("champion")}
+        CURRENTLY: IN GAME ({championId_and_time.get("min"):02d}:{championId_and_time.get("sec"):02d}) AS {champion_name}
         '''
     )
 
