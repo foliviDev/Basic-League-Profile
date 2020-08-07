@@ -22,18 +22,19 @@ def getDDragonData():
     return champ_keys
 
 
-
 def requestBySummName(api_key, region, summoner_name):
 
     summoner_data = requests.get(f'https://{region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summoner_name}?api_key={api_key}')
 
     return summoner_data.json()
 
+
 def requestByID(api_key, region, summoner_id):
 
     summoner_ranked = requests.get(f'https://{region}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={api_key}')
 
     return summoner_ranked.json()
+
 
 def summonerProfile(summoner_name, summoner_data_json, summoner_ranked_json):
 
@@ -74,6 +75,7 @@ def summonerProfile(summoner_name, summoner_data_json, summoner_ranked_json):
 
     return summoner_profile
 
+
 def requestInGame(api_key, summoner_name, region, summoner_id):
 
     ingame_info = requests.get(f'https://{region}.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/{summoner_id}?api_key={api_key}')
@@ -89,6 +91,7 @@ def requestInGame(api_key, summoner_name, region, summoner_id):
         raise SystemExit
 
     return ingame_info.json()
+
 
 def inGameProfile(summoner_name, ingame_info):
 
@@ -110,6 +113,7 @@ def inGameProfile(summoner_name, ingame_info):
 
     return championId_and_time 
 
+
 def championIdToName(champ_keys, championId):
 
     for champ_name, champ_id in champ_keys.items():
@@ -119,6 +123,7 @@ def championIdToName(champ_keys, championId):
             return champ_name
     
     return f"ERROR: THE CHAMPION KEY ID ({championId}) IS NOT ON THE DATABASE"
+
 
 def main():
 
@@ -191,6 +196,7 @@ def main():
         CURRENTLY: IN GAME ({championId_and_time.get("min"):02d}:{championId_and_time.get("sec"):02d}) AS {champion_name}
         '''
     )
+
 
 if __name__ == "__main__":
 
